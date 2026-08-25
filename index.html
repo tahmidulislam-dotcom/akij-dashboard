@@ -256,7 +256,7 @@ function init(){
 function setPlant(key){
   PLANT=key; P=DATA.plants[key];
   $('hdrPlant').textContent=P.meta.name;
-  $('hdrSub').innerHTML=`${P.meta.plants.length?P.meta.plants.join(' · '):'No plant-level MES data'} &nbsp;|&nbsp; Machines: ${P.meta.machines||'—'} &nbsp;|&nbsp; Source: DWH (MSSQL) — MES · HRMS &nbsp;|&nbsp; Generated: ${DATA.generated}`;
+  $('hdrSub').innerHTML=`${P.meta.plants.length?P.meta.plants.join(' · '):'No plant-level MES data'} &nbsp;|&nbsp; Source: DWH (MSSQL) — MES · HRMS &nbsp;|&nbsp; Generated: ${DATA.generated}`;
   ['fromDate','toDate','aiFrom','aiTo'].forEach(id=>{ $(id).min=P.meta.minDate; $(id).max=P.meta.maxDate; });
   $('fromDate').value=P.meta.minDate; $('toDate').value=P.meta.maxDate;
   FROM=P.meta.minDate; TO=P.meta.maxDate;
