@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "akij-dashboard": {
+      "type": "remote",
+      "url": "https://akij-dashboard-deploy.vercel.app/api/mcp",
+      "enabled": true,
+      "description": "Akij Group production & maintenance dashboard data for 15 plants"
+    }
+  }
+}
