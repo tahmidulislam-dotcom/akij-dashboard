@@ -1,1 +1,21 @@
-{"cleanUrls": true}
+{
+  "cleanUrls": true,
+  "functions": {
+    "api/mcp.js": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/mcp",
+      "dest": "/api/mcp.js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
