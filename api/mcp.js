@@ -35,7 +35,7 @@ export default function handler(req, res) {
   }
   
   if (method === "GET") {
-    const plantId = query.plant;
+    const plantId = query.plantId;
     const resource = query.resource || "meta";
     
     if (!DATA) {
@@ -91,7 +91,7 @@ export default function handler(req, res) {
     }
   } else if (method === "POST") {
     // MCP protocol endpoint
-    const body = req.body;
+    const body = req.body || {};
     
     if (body.jsonrpc === "2.0") {
       // Handle MCP JSON-RPC request
