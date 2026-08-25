@@ -1,6 +1,3 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod";
 import fs from "fs";
 import path from "path";
 
@@ -24,185 +21,254 @@ function loadDashboardData() {
 
 const DATA = loadDashboardData();
 
-const server = new McpServer({
-  name: "akij-dashboard",
-  version: "1.0.0",
-});
-
-// Resource: Dashboard metadata
-server.resource("dashboard-meta", "dashboard://meta", async (uri) => ({
-  contents: [
-    {
-      uri: uri.href,
-      mimeType: "application/json",
-      text: JSON.stringify({
-        generated: DATA?.generated,
-        plantCount: DATA?.order?.length || 0,
-        plants: DATA?.order?.map((id) => ({
+export default function handler(req, res) {
+  const { method, query } = req;
+  
+  // CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  
+  if (method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+  
+  if (method === "GET") {
+    const plantId = query.plant;
+    const resource = query.resource || "meta";
+    
+    if (!DATA) {
+      res.status(500).json({ error: "Dashboard data not available" });
+      return;
+    }
+    
+    if (resource === "meta") {
+      res.status(200).json({
+        generated: DATA.generated,
+        plantCount: DATA.order?.length || 0,
+        plants: DATA.order?.map((id) => ({
           id,
           name: DATA.names?.[id] || id,
-          dateRange: DATA.plants?.[id]?.meta
-            ? { from: DATA.plants[id].meta.minDate, to: DATA.plants[id].meta.maxDate }
-            : null,
         })),
-      }),
-    },
-  ],
-}));
-
-// Resource: All plants summary
-server.resource("plants-summary", "dashboard://summary", async (uri) => {
-  const summary = {};
-  if (DATA?.plants) {
-    for (const [id, plant] of Object.entries(DATA.plants)) {
-      const daily = plant.daily || [];
-      const latest = daily[daily.length - 1];
-      summary[id] = {
-        name: DATA.names?.[id] || id,
-        latestDate: latest?.d,
-        oee: latest?.oee,
-        yieldPct: latest?.y,
-        nptPct: latest?.nptPct,
-        dataPoints: daily.length,
-      };
-    }
-  }
-  return {
-    contents: [
-      {
-        uri: uri.href,
-        mimeType: "application/json",
-        text: JSON.stringify(summary, null, 2),
-      },
-    ],
-  };
-});
-
-// Resource: Specific plant data
-server.resource(
-  "plant-data",
-  "dashboard://plant/{plantId}",
-  async (uri, { plantId }) => {
-    const plant = DATA?.plants?.[plantId];
-    if (!plant) {
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: "application/json",
-            text: JSON.stringify({ error: `Plant '${plantId}' not found`, available: DATA?.order }),
-          },
-        ],
-      };
-    }
-    return {
-      contents: [
-        {
-          uri: uri.href,
-          mimeType: "application/json",
-          text: JSON.stringify(plant, null, 2),
-        },
-      ],
-    };
-  }
-);
-
-// Tool: Get plant summary
-server.tool(
-  "get_plant_summary",
-  "Get OEE, yield, NPT summary for a specific plant",
-  { plantId: z.string().describe("Plant ID (e.g. accl, apfil, ael)") },
-  async ({ plantId }) => {
-    const plant = DATA?.plants?.[plantId];
-    if (!plant) {
-      return {
-        content: [{ type: "text", text: `Plant '${plantId}' not found. Available: ${DATA?.order?.join(", ")}` }],
-      };
-    }
-    const meta = plant.meta;
-    const daily = plant.daily || [];
-    const latest = daily[daily.length - 1];
-    const avg = daily.length
-      ? {
-          oee: (daily.reduce((s, r) => s + (r.oee || 0), 0) / daily.length).toFixed(1),
-          yield: (daily.reduce((s, r) => s + (r.y || 0), 0) / daily.length).toFixed(1),
-          npt: (daily.reduce((s, r) => s + (r.nptPct || 0), 0) / daily.length).toFixed(1),
+      });
+    } else if (resource === "summary") {
+      const summary = {};
+      if (DATA.plants) {
+        for (const [id, plant] of Object.entries(DATA.plants)) {
+          const daily = plant.daily || [];
+          const latest = daily[daily.length - 1];
+          summary[id] = {
+            name: DATA.names?.[id] || id,
+            latestDate: latest?.d,
+            oee: latest?.oee,
+            yieldPct: latest?.y,
+            nptPct: latest?.nptPct,
+            dataPoints: daily.length,
+          };
         }
-      : {};
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              plant: meta.name,
-              plants: meta.plants,
-              dateRange: { from: meta.minDate, to: meta.maxDate },
-              latest: { date: latest?.d, oee: latest?.oee, yield: latest?.y, npt: latest?.nptPct },
-              averages: avg,
-              totalDays: daily.length,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  }
-);
-
-// Tool: Get all plants overview
-server.tool("get_all_plants", "Get OEE overview for all plants", {}, async () => {
-  if (!DATA?.plants) {
-    return { content: [{ type: "text", text: "No dashboard data available" }] };
-  }
-  const overview = DATA.order.map((id) => {
-    const p = DATA.plants[id];
-    const daily = p?.daily || [];
-    const latest = daily[daily.length - 1];
-    return {
-      id,
-      name: DATA.names?.[id] || id,
-      oee: latest?.oee,
-      yield: latest?.y,
-      npt: latest?.nptPct,
-      date: latest?.d,
-    };
-  });
-  return {
-    content: [{ type: "text", text: JSON.stringify(overview, null, 2) }],
-  };
-});
-
-// Tool: Get downtime breakdown
-server.tool(
-  "get_downtime_breakdown",
-  "Get NPT breakdown by reason for a plant",
-  { plantId: z.string().describe("Plant ID") },
-  async ({ plantId }) => {
-    const plant = DATA?.plants?.[plantId];
-    if (!plant) {
-      return { content: [{ type: "text", text: `Plant '${plantId}' not found` }] };
+      }
+      res.status(200).json(summary);
+    } else if (resource === "plant" && plantId) {
+      const plant = DATA.plants?.[plantId];
+      if (!plant) {
+        res.status(404).json({ 
+          error: `Plant '${plantId}' not found`,
+          available: DATA.order 
+        });
+      } else {
+        res.status(200).json(plant);
+      }
+    } else {
+      res.status(400).json({ 
+        error: "Invalid resource",
+        usage: {
+          meta: "?resource=meta",
+          summary: "?resource=summary",
+          plant: "?resource=plant&plantId=accl"
+        }
+      });
     }
-    const bd = plant.nptBd || {};
-    return {
-      content: [{ type: "text", text: JSON.stringify(bd, null, 2) }],
-    };
-  }
-);
-
-export default async function handler(req, res) {
-  if (req.method === "POST") {
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    });
-    await server.connect(transport);
-    await transport.handleRequest(req, req.body, res);
-  } else if (req.method === "GET") {
-    res.setHeader("Content-Type", "text/html");
-    res.send(
-      `<html><body><h1>Akij Dashboard MCP Server</h1><p>MCP endpoint: POST /api/mcp</p><p>Data generated: ${DATA?.generated || "N/A"}</p><p>Plants: ${DATA?.order?.join(", ") || "N/A"}</p></body></html>`
-    );
+  } else if (method === "POST") {
+    // MCP protocol endpoint
+    const body = req.body;
+    
+    if (body.jsonrpc === "2.0") {
+      // Handle MCP JSON-RPC request
+      const { id, method: rpcMethod, params } = body;
+      
+      if (rpcMethod === "initialize") {
+        res.status(200).json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            protocolVersion: "2024-11-05",
+            capabilities: {
+              resources: { listChanged: false },
+              tools: { listChanged: false }
+            },
+            serverInfo: {
+              name: "akij-dashboard",
+              version: "1.0.0"
+            }
+          }
+        });
+      } else if (rpcMethod === "resources/list") {
+        res.status(200).json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            resources: [
+              {
+                uri: "dashboard://meta",
+                name: "Dashboard Metadata",
+                description: "Metadata about all plants and data generation time",
+                mimeType: "application/json"
+              },
+              {
+                uri: "dashboard://summary",
+                name: "Plants Summary",
+                description: "Summary of OEE, yield, NPT for all plants",
+                mimeType: "application/json"
+              }
+            ]
+          }
+        });
+      } else if (rpcMethod === "resources/read") {
+        const { uri } = params;
+        let data;
+        
+        if (uri === "dashboard://meta") {
+          data = {
+            generated: DATA?.generated,
+            plantCount: DATA?.order?.length || 0,
+            plants: DATA?.order?.map((id) => ({
+              id,
+              name: DATA?.names?.[id] || id,
+            })),
+          };
+        } else if (uri === "dashboard://summary") {
+          const summary = {};
+          if (DATA?.plants) {
+            for (const [id, plant] of Object.entries(DATA.plants)) {
+              const daily = plant.daily || [];
+              const latest = daily[daily.length - 1];
+              summary[id] = {
+                name: DATA.names?.[id] || id,
+                latestDate: latest?.d,
+                oee: latest?.oee,
+                yieldPct: latest?.y,
+                nptPct: latest?.nptPct,
+              };
+            }
+          }
+          data = summary;
+        } else if (uri.startsWith("dashboard://plant/")) {
+          const plantId = uri.split("/")[2];
+          data = DATA?.plants?.[plantId] || { error: `Plant '${plantId}' not found` };
+        } else {
+          res.status(400).json({ jsonrpc: "2.0", id, error: { code: -32601, message: "Resource not found" } });
+          return;
+        }
+        
+        res.status(200).json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            contents: [{
+              uri,
+              mimeType: "application/json",
+              text: JSON.stringify(data, null, 2)
+            }]
+          }
+        });
+      } else if (rpcMethod === "tools/list") {
+        res.status(200).json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            tools: [
+              {
+                name: "get_plant_summary",
+                description: "Get OEE, yield, NPT summary for a specific plant",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    plantId: { type: "string", description: "Plant ID (e.g. accl, apfil)" }
+                  },
+                  required: ["plantId"]
+                }
+              },
+              {
+                name: "get_all_plants",
+                description: "Get OEE overview for all plants",
+                inputSchema: { type: "object", properties: {} }
+              }
+            ]
+          }
+        });
+      } else if (rpcMethod === "tools/call") {
+        const { name, arguments: args } = params;
+        
+        if (name === "get_plant_summary") {
+          const plant = DATA?.plants?.[args.plantId];
+          if (!plant) {
+            res.status(200).json({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: `Plant '${args.plantId}' not found` }]
+              }
+            });
+          } else {
+            const daily = plant.daily || [];
+            const latest = daily[daily.length - 1];
+            res.status(200).json({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    plant: plant.meta?.name,
+                    latest: { date: latest?.d, oee: latest?.oee, yield: latest?.y },
+                    totalDays: daily.length
+                  }, null, 2)
+                }]
+              }
+            });
+          }
+        } else if (name === "get_all_plants") {
+          const overview = DATA?.order?.map((id) => {
+            const p = DATA.plants?.[id];
+            const daily = p?.daily || [];
+            const latest = daily[daily.length - 1];
+            return { id, name: DATA.names?.[id], oee: latest?.oee, yield: latest?.y };
+          }) || [];
+          res.status(200).json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: JSON.stringify(overview, null, 2) }]
+            }
+          });
+        } else {
+          res.status(200).json({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32601, message: `Tool '${name}' not found` }
+          });
+        }
+      } else {
+        res.status(200).json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32601, message: `Method '${rpcMethod}' not found` }
+        });
+      }
+    } else {
+      res.status(400).json({ error: "Invalid JSON-RPC request" });
+    }
   } else {
     res.status(405).json({ error: "Method not allowed" });
   }
