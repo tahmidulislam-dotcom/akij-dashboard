@@ -7,11 +7,8 @@
   },
   "routes": [
     {
-      "src": "/api/mcp",
-      "dest": "/api/mcp.js"
-    },
-    {
-      "handle": "filesystem"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
       "src": "/(.*)",
