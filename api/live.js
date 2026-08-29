@@ -54,7 +54,7 @@ export default async function handler(req,res){
   if(Date.now()-cacheAt < CACHE_MS && cache && cache.date===dhakaToday && !req.query.nocache){
     return res.status(200).json(cache);
   }
-  // Check pushed live cache first (from local office via /api/push-live)
+  // Check pushed live cache first (from local office via /api/push-live -> Gist)
   try{
     if(global.__liveCache && global.__liveCache.date===dhakaToday){
       const age=Date.now()-new Date(global.__liveCache._pushedAt||0).getTime();
@@ -67,6 +67,20 @@ export default async function handler(req,res){
         const age=Date.now()-new Date(j._pushedAt||0).getTime();
         if(age < 30*60*1000) return res.status(200).json({...j, source:"pushed-live-file"});
       }
+    }
+    // Try GitHub Gist (cross-instance, survives cold starts)
+    const gistUrl=process.env.GIST_RAW_URL || (process.env.GIST_ID ? `https://gist.githubusercontent.com/tahmidulislam-dotcom/${process.env.GIST_ID}/raw/akij-live.json` : null);
+    if(gistUrl){
+      try{
+        const gr=await fetch(gistUrl,{cache:'no-store'});
+        if(gr.ok){
+          const gj=await gr.json();
+          if(gj.date===dhakaToday && gj.plants && Object.keys(gj.plants).length){
+            const age=Date.now()-new Date(gj._pushedAt||0).getTime();
+            if(age < 30*60*1000) return res.status(200).json({...gj, source:"gist-live"});
+          }
+        }
+      }catch{}
     }
   }catch{}
   try{
