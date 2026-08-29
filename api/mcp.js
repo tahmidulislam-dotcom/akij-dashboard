@@ -8,7 +8,7 @@ function loadDashboardData() {
     return null;
   }
   const html = fs.readFileSync(htmlPath, "utf8");
-  const match = html.match(/const DATA = ({[\s\S]*?});\s*\n?\s*(?:const |function |document\.)/);
+  const match = html.match(/(?:const|let) DATA = ({[\s\S]*?});\s*\n?\s*(?:const |let |function |document\.)/);
   if (match) {
     try {
       return JSON.parse(match[1]);
