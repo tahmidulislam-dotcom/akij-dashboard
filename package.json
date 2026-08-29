@@ -1,1 +1,1 @@
-{"name":"akij-dashboard-mcp","version":"1.0.0","dependencies":{"@modelcontextprotocol/sdk":"^1.12.1"}}
+{"name":"akij-dashboard-mcp","version":"1.0.0","dependencies":{"@modelcontextprotocol/sdk":"^1.12.1","mssql":"^11.0.1"}}

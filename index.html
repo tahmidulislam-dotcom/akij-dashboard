@@ -84,7 +84,11 @@ tr:last-child td{border-bottom:none}
     <h1>Deputy COO Control Tower — <span class="co" id="hdrPlant">—</span></h1>
     <div class="sub" id="hdrSub"></div>
   </div>
-  <span class="live">● LIVE DWH DATA</span>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span class="live">● LIVE DWH DATA</span>
+    <button class="btn ghost" id="btnLiveRefresh" onclick="refreshLive()" style="padding:6px 12px;font-size:11.5px">↻ Refresh Live</button>
+    <span style="font-size:11px;color:var(--mut)" id="liveStatus"></span>
+  </div>
 </header>
 
 <!-- FILTERS -->
@@ -267,6 +271,62 @@ async function fetchLiveData(){
   }catch(e){ console.warn('live MCP fetch failed, using embedded snapshot',e.message); if(liveEl) liveEl.textContent='● CACHED SNAPSHOT — '+DATA.generated+' (MCP unreachable)'; }
   return false;
 }
+async function refreshLive(){
+  const btn=$('btnLiveRefresh'); const st=$('liveStatus');
+  if(btn) btn.textContent='↻ Refreshing…';
+  if(st) st.textContent='';
+  try{
+    const r=await fetch(`${API}/api/live?nocache=1`,{cache:'no-store'});
+    if(!r.ok) throw new Error(''+r.status);
+    const live=await r.json();
+    if(live && live.plants && !live.fallback){
+      let updated=0;
+      for(const [key,lp] of Object.entries(live.plants)){
+        if(!DATA.plants[key]) continue;
+        // merge daily for today
+        if(lp.daily && lp.daily.length){
+          for(const row of lp.daily){
+            const idx=DATA.plants[key].daily.findIndex(x=>x.d===row.d && x.u===row.u);
+            if(idx>=0) DATA.plants[key].daily[idx]=row; else DATA.plants[key].daily.push(row);
+            if(key===PLANT) updated++;
+          }
+          DATA.plants[key].daily.sort((a,b)=>a.d<b.d?-1:1);
+        }
+        // merge mohToday into mohDaily
+        if(lp.mohToday!=null && lp.mohToday>0){
+          const today=live.date;
+          const md=DATA.plants[key].mohDaily||[];
+          const mi=md.findIndex(x=>x.d===today);
+          if(mi>=0) md[mi].c=lp.mohToday; else md.push({d:today,c:lp.mohToday});
+          md.sort((a,b)=>a.d<b.d?-1:1);
+          DATA.plants[key].mohDaily=md;
+          if(key===PLANT) updated++;
+        }
+        // keep meta maxDate in sync
+        if(live.date > DATA.plants[key].meta.maxDate) DATA.plants[key].meta.maxDate=live.date;
+      }
+      if(live.date > DATA.generated.slice(0,10)) DATA.generated=live.generated || (live.date+' live');
+      if(updated>0){
+        // re-bind current plant ref and re-render
+        P=DATA.plants[PLANT];
+        // extend TO to include today if needed
+        if(live.date > TO) { TO=live.date; $('toDate').value=TO; }
+        render();
+        if(st) st.textContent=`Live updated ${live.date} ✔`;
+        setTimeout(()=>{ if(st) st.textContent=''; }, 4000);
+      } else {
+        if(st) st.textContent=`No new rows for ${live.date}`;
+      }
+    } else {
+      if(live && live.fallback) { if(st) st.textContent=`Live DWH unreachable — showing cached snapshot`; }
+      else if(st) st.textContent=`No live data`;
+    }
+  }catch(e){
+    console.warn('refreshLive failed',e);
+    if(st) st.textContent=`Live refresh failed — ${e.message}`;
+  }
+  if(btn) btn.textContent='↻ Refresh Live';
+}
 async function init(){
   const liveEl=document.querySelector('.live');
   if(liveEl) liveEl.textContent='● LOADING LIVE MCP…';
@@ -279,6 +339,8 @@ async function init(){
     else { $('fromDate').value = `${y}-01-01`; $('toDate').value = `${y}-12-31`; applyFilters(); }
   });
   setPlant(DATA.order[0]);
+  // auto-refresh every 5 min (only when tab visible)
+  setInterval(()=>{ if(document.visibilityState==='visible') refreshLive(); }, 5*60*1000);
 }
 function setPlant(key){
   PLANT=key; P=DATA.plants[key];
