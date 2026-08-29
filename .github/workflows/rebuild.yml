@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install deps
         run: npm ci
       - name: Build dashboard from DWH
@@ -31,7 +31,7 @@ jobs:
           MSSQL_USER: ${{ secrets.MSSQL_USER }}
           MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
           MSSQL_DATABASE: ${{ secrets.MSSQL_DATABASE }}
-        run: node build-dashboard.js
+        run: node build-dashboard.js || { echo "DWH unreachable from GitHub runner — skip rebuild, Vercel will stay live via office push (api/push-live)"; exit 0; }
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"

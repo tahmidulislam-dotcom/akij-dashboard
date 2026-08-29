@@ -1,3 +1,4 @@
+import fs from "fs";
 import sql from "mssql";
 const PLANTS=[
   {key:'accl', bu:4, plants:['ACCL Narayanganj']},
@@ -53,6 +54,21 @@ export default async function handler(req,res){
   if(Date.now()-cacheAt < CACHE_MS && cache && cache.date===dhakaToday && !req.query.nocache){
     return res.status(200).json(cache);
   }
+  // Check pushed live cache first (from local office via /api/push-live)
+  try{
+    if(global.__liveCache && global.__liveCache.date===dhakaToday){
+      const age=Date.now()-new Date(global.__liveCache._pushedAt||0).getTime();
+      if(age < 30*60*1000) return res.status(200).json({...global.__liveCache, source:"pushed-live-memory"});
+    }
+    const p="/tmp/live-cache.json";
+    if(fs.existsSync(p)){
+      const j=JSON.parse(fs.readFileSync(p,"utf8"));
+      if(j.date===dhakaToday){
+        const age=Date.now()-new Date(j._pushedAt||0).getTime();
+        if(age < 30*60*1000) return res.status(200).json({...j, source:"pushed-live-file"});
+      }
+    }
+  }catch{}
   try{
     const p=await getPool();
     const Q=async q=> (await p.request().query(q)).recordset;
