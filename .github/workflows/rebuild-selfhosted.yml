@@ -1,0 +1,41 @@
+name: Rebuild DWH Data — Self-Hosted (always-on office)
+
+on:
+  schedule:
+    - cron: '35 0 * * *'  # 00:35 UTC = 06:35 Dhaka, daily (5 min after cloud attempt)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: self-hosted  # requires a Windows self-hosted runner on office network (see setup-selfhosted-runner.ps1)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        run: npm ci
+        shell: powershell
+      - name: Build dashboard from DWH (office network)
+        env:
+          MSSQL_SERVER: ${{ secrets.MSSQL_SERVER }}
+          MSSQL_PORT: ${{ secrets.MSSQL_PORT }}
+          MSSQL_USER: ${{ secrets.MSSQL_USER }}
+          MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
+          MSSQL_DATABASE: ${{ secrets.MSSQL_DATABASE }}
+        run: node build-dashboard.js
+        shell: powershell
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if (git diff --quiet -- index.html) { echo "No data change — skip"; exit 0 }
+          git add index.html
+          git commit -m "chore: auto-rebuild (self-hosted) $(Get-Date -Format 'yyyy-MM-dd HH:mm') UTC [skip ci]"
+          git push origin HEAD:main
+        shell: powershell
