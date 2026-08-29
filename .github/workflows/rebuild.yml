@@ -1,0 +1,45 @@
+name: Rebuild DWH Data (Live without manual rebuild)
+
+on:
+  schedule:
+    - cron: '30 0 * * *'  # 00:30 UTC = 06:30 Asia/Dhaka, daily
+  workflow_dispatch:
+  push:
+    paths:
+      - 'build-dashboard.js'
+      - 'dashboard-template.html'
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: npm ci
+      - name: Build dashboard from DWH
+        env:
+          MSSQL_SERVER: ${{ secrets.MSSQL_SERVER }}
+          MSSQL_PORT: ${{ secrets.MSSQL_PORT }}
+          MSSQL_USER: ${{ secrets.MSSQL_USER }}
+          MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
+          MSSQL_DATABASE: ${{ secrets.MSSQL_DATABASE }}
+        run: node build-dashboard.js
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- index.html; then
+            echo "No data change — skip commit"
+            exit 0
+          fi
+          git add index.html
+          git commit -m "chore: auto-rebuild DWH snapshot $(date -u +'%Y-%m-%d %H:%M UTC') [skip ci]"
+          git push origin HEAD:main
