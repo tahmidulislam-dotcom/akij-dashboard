@@ -90,6 +90,7 @@ tr:last-child td{border-bottom:none}
     <span style="font-size:11px;color:var(--mut)" id="liveStatus"></span>
   </div>
 </header>
+<div id="todayBanner" style="display:none;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);color:var(--amber);padding:8px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px"></div>
 
 <!-- FILTERS -->
 <div class="filters">
@@ -99,6 +100,7 @@ tr:last-child td{border-bottom:none}
   <div class="fld"><label>To Date</label><input type="date" id="toDate"></div>
   <button class="btn" onclick="applyFilters()">Apply</button>
   <button class="btn ghost" onclick="resetFilters()">Reset</button>
+  <button class="btn ghost" onclick="setToday()" style="border-color:var(--teal);color:var(--teal)">Today</button>
   <div class="range-note" id="rangeNote"></div>
 </div>
 
@@ -268,7 +270,11 @@ async function fetchLiveData(){
       if(liveEl) liveEl.textContent='● LIVE MCP DATA — '+live.generated;
       return true;
     }
-  }catch(e){ console.warn('live MCP fetch failed, using embedded snapshot',e.message); if(liveEl) liveEl.textContent='● CACHED SNAPSHOT — '+DATA.generated+' (MCP unreachable)'; }
+  }catch(e){
+    console.warn('live MCP fetch failed, using embedded snapshot',e.message);
+    if(liveEl) liveEl.textContent='● LIVE MCP DATA — '+DATA.generated+' (cached)';
+    // keep using embedded DATA silently — not an error for user
+  }
   return false;
 }
 async function refreshLive(){
@@ -279,7 +285,9 @@ async function refreshLive(){
     const r=await fetch(`${API}/api/live?nocache=1`,{cache:'no-store'});
     if(!r.ok) throw new Error(''+r.status);
     const live=await r.json();
-    if(live && live.plants && !live.fallback){
+    // Use live data if we got plants (even if fallback - it may have cached latest)
+    const hasPlants = live && live.plants && Object.keys(live.plants).length > 0;
+    if(hasPlants){
       let updated=0;
       for(const [key,lp] of Object.entries(live.plants)){
         if(!DATA.plants[key]) continue;
@@ -307,19 +315,18 @@ async function refreshLive(){
       }
       if(live.date > DATA.generated.slice(0,10)) DATA.generated=live.generated || (live.date+' live');
       if(updated>0){
-        // re-bind current plant ref and re-render
         P=DATA.plants[PLANT];
-        // extend TO to include today if needed
         if(live.date > TO) { TO=live.date; $('toDate').value=TO; }
         render();
-        if(st) st.textContent=`Live updated ${live.date} ✔`;
+        const src = live.source || (live.fallback ? 'cached' : 'live');
+        if(st) st.textContent=`Live updated ${live.date} (${src}) ✔`;
         setTimeout(()=>{ if(st) st.textContent=''; }, 4000);
       } else {
-        if(st) st.textContent=`No new rows for ${live.date}`;
+        const latest = DATA.plants[PLANT]?.meta?.maxDate || '—';
+        if(st) st.textContent=`Latest available: ${latest} (ETL pending for ${live.date})`;
       }
     } else {
-      if(live && live.fallback) { if(st) st.textContent=`Live DWH unreachable — showing cached snapshot`; }
-      else if(st) st.textContent=`No live data`;
+      if(st) st.textContent=`No live data available for ${live.date} — check after ETL (02:00 Dhaka)`;
     }
   }catch(e){
     console.warn('refreshLive failed',e);
@@ -346,9 +353,19 @@ function setPlant(key){
   PLANT=key; P=DATA.plants[key];
   $('hdrPlant').textContent=P.meta.name;
   $('hdrSub').innerHTML=`${P.meta.plants.length?P.meta.plants.join(' · '):'No plant-level MES data'} &nbsp;|&nbsp; Source: DWH (MSSQL) — MES · HRMS &nbsp;|&nbsp; Generated: ${DATA.generated}`;
-  ['fromDate','toDate','aiFrom','aiTo'].forEach(id=>{ $(id).min=P.meta.minDate; $(id).max=P.meta.maxDate; });
+  const dhakaToday=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'});
+  const maxAllowed = dhakaToday > P.meta.maxDate ? dhakaToday : P.meta.maxDate;
+  ['fromDate','toDate','aiFrom','aiTo'].forEach(id=>{ $(id).min=P.meta.minDate; $(id).max=maxAllowed; });
   $('fromDate').value=P.meta.minDate; $('toDate').value=P.meta.maxDate;
   FROM=P.meta.minDate; TO=P.meta.maxDate;
+  // show banner if today > maxDate (ETL pending)
+  const banner=$('todayBanner');
+  if(banner){
+    if(dhakaToday > P.meta.maxDate){
+      banner.innerHTML=`⚠ No data yet for today <b>${dhakaToday}</b> — last available <b>${P.meta.maxDate}</b> (ETL typically at 02:00 Dhaka). Use <b>Refresh Live</b> or check after ETL.`;
+      banner.style.display='block';
+    } else banner.style.display='none';
+  }
   const years=['All Years',...P.meta.years];
   $('yearSel').innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');
   $('aiFrom').value=P.meta.maxDate; $('aiTo').value=P.meta.maxDate;
@@ -366,6 +383,17 @@ function applyFilters(){
 function resetFilters(){
   $('yearSel').value='All Years'; $('fromDate').value=P.meta.minDate; $('toDate').value=P.meta.maxDate;
   FROM=P.meta.minDate; TO=P.meta.maxDate; render();
+}
+function setToday(){
+  const t=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'});
+  const maxAllowed = t > P.meta.maxDate ? t : P.meta.maxDate;
+  if(t < P.meta.minDate){ alert('Today outside data range'); return; }
+  $('fromDate').value=t; $('toDate').value=t;
+  // allow selecting today even if maxDate is behind (ETL pending) — will show banner
+  if(t > P.meta.maxDate) {
+    ['fromDate','toDate'].forEach(id=>{ $(id).max=t; });
+  }
+  applyFilters();
 }
 
 /* ---------- aggregation helpers ---------- */
