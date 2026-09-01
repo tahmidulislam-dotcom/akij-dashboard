@@ -205,6 +205,28 @@ tr:last-child td{border-bottom:none}
       <tbody></tbody>
     </table></div>
   </div>
+  <!-- MCP SYSTEMS (ARL Enterprise) -->
+  <div class="panel" id="mcpPanel">
+    <h3>🔌 Enterprise MCP Systems</h3>
+    <div class="note">Query Finance, Procurement, WMS, MES, OMS, Import, Asset, TMS, RTM, Costing, Partners &amp; Items via ARL MCP proxy — <span id="mcpProxyUrl">loading…</span></div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+      <div class="fld"><label>Domain</label><select id="mcpDomain"></select></div>
+      <div class="fld"><label>Method</label>
+        <select id="mcpMethod">
+          <option value="tools/list">Tools List</option>
+          <option value="resources/list">Resources</option>
+          <option value="tools/call">Call Tool</option>
+        </select>
+      </div>
+      <div class="fld" id="mcpToolFld" style="display:none"><label>Tool (JSON args optional)</label><input type="text" id="mcpTool" placeholder="tool_name" style="min-width:200px"></div>
+      <div class="fld" id="mcpArgsFld" style="display:none"><label>Args (JSON)</label><input type="text" id="mcpArgs" placeholder='{"plantId":"accl"}' style="min-width:220px"></div>
+      <button class="btn" onclick="mcpQuery()">Run</button>
+      <button class="btn ghost" onclick="mcpListDomains()">List Domains</button>
+      <span class="ai-status" id="mcpStatus"></span>
+    </div>
+    <div id="mcpOutput" style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6;color:#cdd7ea;max-height:380px;overflow:auto;white-space:pre-wrap;word-break:break-word">Select a domain and click <b>Run</b>. Use <b>Tools List</b> to discover available tools.</div>
+  </div>
+
   <!-- AI ANALYSIS AGENT -->
   <div class="panel" id="aiPanel">
     <h3>🤖 AI Analysis Agent</h3>
@@ -731,6 +753,54 @@ let lastReport = null;
 function aiStatus(msg, cls){ const el=$('aiStatus'); el.innerHTML=`<span class="${cls||'wait'} pulse">${msg}</span>`; }
 function emStatusMsg(msg, cls){ const el=$('emStatus'); el.innerHTML=`<span class="${cls||'wait'}">${msg}</span>`; }
 
+/* ---- Enterprise MCP Systems ---- */
+function mcpStatus(msg, cls){ const el=$('mcpStatus'); el.innerHTML=`<span class="${cls||'wait'}">${msg}</span>`; }
+async function mcpListDomains(){
+  const el=$('mcpOutput'); const dom=$('mcpDomain');
+  try{
+    mcpStatus('Loading domains…','wait');
+    const r=await fetch(`${API}/api/proxy?list=1`);
+    const d=await r.json();
+    if(d.domains){
+      dom.innerHTML=d.domains.map(x=>`<option value="${x.domain}">${x.label}</option>`).join('');
+      $('mcpProxyUrl').textContent=`proxy → ${d.mcp_url||'arl-mcp'}`;
+      el.innerHTML=`<b>${d.domains.length} domains</b> via <i>${d.mcp_url||'arl-mcp'}</i>:\n`+d.domains.map(x=>`• ${x.domain} — ${x.label}`).join('\n');
+      mcpStatus('Domains loaded ✔','ok');
+    } else {
+      el.innerHTML=JSON.stringify(d,null,2);
+      mcpStatus('No domains','err');
+    }
+  }catch(e){ el.innerHTML='Proxy unreachable — '+e.message; mcpStatus('Failed','err'); }
+}
+async function mcpQuery(){
+  const dom=$('mcpDomain').value; const method=$('mcpMethod').value;
+  const tool=$('mcpTool').value.trim(); let args=$('mcpArgs').value.trim();
+  if(args){ try{ args=JSON.parse(args); }catch{ mcpStatus('Invalid args JSON','err'); return; } } else args={};
+  if(!dom){ mcpStatus('Select a domain','err'); return; }
+  if(method==='tools/call' && !tool){ mcpStatus('Enter tool name','err'); return; }
+  const el=$('mcpOutput');
+  // toggle fields
+  $('mcpToolFld').style.display = method==='tools/call' ? '' : 'none';
+  $('mcpArgsFld').style.display = method==='tools/call' ? '' : 'none';
+  el.innerHTML='Querying <b>'+dom+'</b> / '+method+'…';
+  mcpStatus('Querying…','wait');
+  try{
+    const q=`${API}/api/proxy?domain=${encodeURIComponent(dom)}&method=${encodeURIComponent(method)}&tool=${encodeURIComponent(tool)}&args=${encodeURIComponent(JSON.stringify(args))}`;
+    const r=await fetch(q); const d=await r.json();
+    const payload = (d.result!==undefined && d.result!==null) ? d.result : d;
+    el.innerHTML = '▪ <b>'+dom+'</b> ('+d.label+') / '+method+'\nHTTP '+d.http+'\n\n'+JSON.stringify(payload,null,2);
+    mcpStatus((d.http===200?'OK':'HTTP '+d.http)+' ('+dom+') '+(d.error?'⚠ '+d.error:''), d.http===200?'ok':'err');
+  }catch(e){ el.innerHTML='Query failed — '+e.message; mcpStatus('Failed','err'); }
+}
+function mcpInit(){
+  const dom=$('mcpDomain');
+  $('mcpMethod').addEventListener('change', ()=>{
+    $('mcpToolFld').style.display = $('mcpMethod').value==='tools/call' ? '' : 'none';
+    $('mcpArgsFld').style.display = $('mcpMethod').value==='tools/call' ? '' : 'none';
+  });
+  if(dom && !dom.options.length) mcpListDomains();
+}
+
 function aiInit(){
   $('aiFrom').value = P.meta.maxDate; $('aiTo').value = P.meta.maxDate;
   $('aiFrom').min = P.meta.minDate; $('aiFrom').max = P.meta.maxDate;
@@ -949,7 +1019,7 @@ function sendReport(){
       emStatusMsg(`Sent to ${d.sent_to.join(', ')} ✔`,'ok'); })
     .catch(e=>emStatusMsg('Send failed: '+e.message,'err'));
 }
-document.addEventListener('DOMContentLoaded', aiInit);
+document.addEventListener('DOMContentLoaded', ()=>{ aiInit(); mcpInit(); });
 </script>
 </body>
 </html>

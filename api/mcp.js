@@ -130,6 +130,12 @@ export default function handler(req, res) {
                 name: "Plants Summary",
                 description: "Summary of OEE, yield, NPT for all plants",
                 mimeType: "application/json"
+              },
+              {
+                uri: "enterprise://domains",
+                name: "Enterprise MCP Domains",
+                description: "List of ARL MCP domains available via /api/proxy (Finance, Procurement, WMS, MES, OMS, Import, Asset, TMS, RTM, Costing, Partners, Items)",
+                mimeType: "application/json"
               }
             ]
           }
@@ -163,6 +169,25 @@ export default function handler(req, res) {
             }
           }
           data = summary;
+        } else if (uri === "enterprise://domains") {
+          data = {
+            mcp_url: process.env.ARL_MCP_URL || "https://arl-mcp.ibos.io/mcp",
+            proxy: "/api/proxy",
+            domains: [
+              { domain: "finance", label: "Finance" },
+              { domain: "procurement", label: "Procurement" },
+              { domain: "wms", label: "Warehouse (WMS)" },
+              { domain: "mes", label: "Manufacturing (MES)" },
+              { domain: "oms", label: "Order (OMS)" },
+              { domain: "import", label: "Import/Commercial" },
+              { domain: "asset", label: "Asset" },
+              { domain: "tms", label: "Transport (TMS)" },
+              { domain: "rtm", label: "RTM" },
+              { domain: "cost", label: "Costing" },
+              { domain: "partner", label: "Partners" },
+              { domain: "item", label: "Items" },
+            ],
+          };
         } else if (uri.startsWith("dashboard://plant/")) {
           const plantId = uri.split("/")[2];
           data = DATA?.plants?.[plantId] || { error: `Plant '${plantId}' not found` };
@@ -203,6 +228,26 @@ export default function handler(req, res) {
                 name: "get_all_plants",
                 description: "Get OEE overview for all plants",
                 inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "enterprise_domains",
+                description: "List available ARL enterprise MCP domains (Finance, Procurement, WMS, MES, OMS, Import, Asset, TMS, RTM, Costing, Partners, Items)",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "proxy_enterprise",
+                description: "Proxy a call to an ARL MCP domain. domain in finance|procurement|wms|mes|oms|import|asset|tms|rtm|cost|partner|item. method in tools/list|resources/list|resources/read|tools/call",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    domain: { type: "string", description: "Which domain (finance, mes, wms, ...)" },
+                    method: { type: "string", description: "tools/list, resources/list, resources/read, tools/call" },
+                    tool: { type: "string", description: "Tool name when method=tools/call" },
+                    uri: { type: "string", description: "Resource URI when method=resources/read" },
+                    args: { type: "object", description: "Arguments for tools/call" }
+                  },
+                  required: ["domain"]
+                }
               }
             ]
           }
@@ -252,6 +297,46 @@ export default function handler(req, res) {
               content: [{ type: "text", text: JSON.stringify(overview, null, 2) }]
             }
           });
+        } else if (name === "enterprise_domains") {
+          res.status(200).json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: JSON.stringify({
+                mcp_url: process.env.ARL_MCP_URL || "https://arl-mcp.ibos.io/mcp",
+                proxy: "/api/proxy",
+                domains: [
+                  "finance","procurement","wms","mes","oms","import","asset","tms","rtm","cost","partner","item"
+                ]
+              }, null, 2) }]
+            }
+          });
+        } else if (name === "proxy_enterprise") {
+          // Forward to /api/proxy
+          const { domain, method = "tools/list", tool, uri, args = {} } = args || {};
+          if (!domain) {
+            res.status(200).json({ jsonrpc: "2.0", id, error: { code: -32602, message: "domain required" } });
+            return;
+          }
+          const url = new URL("/api/proxy", "http://x");
+          url.searchParams.set("domain", domain);
+          url.searchParams.set("method", method);
+          if (tool) url.searchParams.set("tool", tool);
+          if (uri) url.searchParams.set("uri", uri);
+          url.searchParams.set("args", JSON.stringify(args));
+          try {
+            const pr = await fetch(url.toString()); // forward within same origin
+            const pj = await pr.json();
+            res.status(200).json({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [{ type: "text", text: JSON.stringify(pj, null, 2) }]
+              }
+            });
+          } catch (e) {
+            res.status(200).json({ jsonrpc: "2.0", id, error: { code: -32603, message: "proxy failed: " + e.message } });
+          }
         } else {
           res.status(200).json({
             jsonrpc: "2.0",
