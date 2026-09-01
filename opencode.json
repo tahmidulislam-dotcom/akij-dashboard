@@ -3,9 +3,153 @@
   "mcp": {
     "akij-dashboard": {
       "type": "remote",
-      "url": "https://akij-dashboard-deploy.vercel.app/api/mcp",
+      "url": "https://akij-dashboard.vercel.app/api/mcp",
       "enabled": true,
       "description": "Akij Group production & maintenance dashboard data for 15 plants"
+    },
+    "FinanceMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_fin_9c3d4e5f_6a7b_8c9d_0e1f_2a3b4c5d6e7f_F1n4"
+      ],
+      "enabled": true
+    },
+    "ProcurementMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_pro_8b2c3d4e_5f6a_7b8c_9d0e_1f2a3b4c5d6e_Pr0c"
+      ],
+      "enabled": true
+    },
+    "WmsMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_wms_1e5f6a7b_8c9d_0e1f_2a3b_4c5d6e7f8a9b_WmS9"
+      ],
+      "enabled": true
+    },
+    "MesMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_mes_5c9d0e1f_2a3b_4c5d_6e7f_8a9b0c1d2e3f_M3s8"
+      ],
+      "enabled": true
+    },
+    "OmsMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_oms_6d0e1f2a_3b4c_5d6e_7f8a_9b0c1d2e3f4a_0mS7"
+      ],
+      "enabled": true
+    },
+    "ImportMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_com_0d4e5f6a_7b8c_9d0e_1f2a_3b4c5d6e7f8a_1mp0"
+      ],
+      "enabled": true
+    },
+    "AssetMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_ast_7a1b2c3d_4e5f_6a7b_8c9d_0e1f2a3b4c5d_AsS3t"
+      ],
+      "enabled": true
+    },
+    "TmsMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_tms_7e1f2a3b_4c5d_6e7f_8a9b_0c1d2e3f4a5b_TmS6"
+      ],
+      "enabled": true
+    },
+    "RtmMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_rtm_2d6e7f8a_9b0c_1d2e_3f4a_5b6c7d8e9f0a_RtM2"
+      ],
+      "enabled": true
+    },
+    "CostMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_cco_4b8c9d0e_1f2a_3b4c_5d6e_7f8a9b0c1d2e_C0st"
+      ],
+      "enabled": true
+    },
+    "PartnerMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_prt_2f6a7b8c_9d0e_1f2a_3b4c_5d6e7f8a9b0c_P4rt"
+      ],
+      "enabled": true
+    },
+    "ItemMcpServer": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://arl-mcp.ibos.io/mcp",
+        "--header",
+        "X-API-Key: ibos_mcp_sec_itm_3a7b8c9d_0e1f_2a3b_4c5d_6e7f8a9b0c1d_1t3m"
+      ],
+      "enabled": true
     }
   }
 }
